@@ -127,14 +127,25 @@ def main(args: DictConfig):
             batch: Dict[str, Any]
             event_image = batch["event_volume"].to(device) # [B, 4, 480, 640]
             ground_truth_flow = batch["flow_gt"].to(device) # [B, 2, 480, 640]
-            flow = model(event_image) # [B, 2, 480, 640]
-            loss: torch.Tensor = compute_epe_error(flow, ground_truth_flow)
-            print(f"batch {i} loss: {loss.item()}")
+            flow1, flow2, flow3, flow_last = model(event_image) # [B, 2, 480, 640]
+
+            loss1: torch.Tensor = compute_epe_error(flow1, ground_truth_flow)
+            loss2: torch.Tensor = compute_epe_error(flow2, ground_truth_flow)
+            loss3: torch.Tensor = compute_epe_error(flow3, ground_truth_flow)
+            loss_out: torch.Tensor = compute_epe_error(flow_last, ground_truth_flow)
+                
+            print(f"batch {i} loss: {loss_out.item()}")
+            
+            loss = loss_out + 0.75*loss3 + 0.5*loss2 + 0.25*loss1
+
+
             optimizer.zero_grad()
+
             loss.backward()
+            
             optimizer.step()
 
-            total_loss += loss.item()
+            total_loss += loss_out.item()
         print(f'Epoch {epoch+1}, Loss: {total_loss / len(train_data)}')
 
     # Create the directory if it doesn't exist
@@ -157,7 +168,7 @@ def main(args: DictConfig):
         for batch in tqdm(test_data):
             batch: Dict[str, Any]
             event_image = batch["event_volume"].to(device)
-            batch_flow = model(event_image) # [1, 2, 480, 640]
+            _, _, _, batch_flow = model(event_image) # [1, 2, 480, 640]
             flow = torch.cat((flow, batch_flow), dim=0)  # [N, 2, 480, 640]
         print("test done")
     # ------------------
