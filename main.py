@@ -119,6 +119,8 @@ def main(args: DictConfig):
     # ------------------
     #   Start training
     # ------------------
+#     model_path = "checkpoints/model_20240714130521.pth"
+#     model.load_state_dict(torch.load(model_path, map_location=device))
     model.train()
     for epoch in range(args.train.epochs):
         total_loss = 0
