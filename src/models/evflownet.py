@@ -49,20 +49,23 @@ class EVFlowNet(nn.Module):
         inputs = torch.cat([inputs, skip_connections['skip3']], dim=1)
         inputs, flow = self.decoder1(inputs)
         flow_dict['flow0'] = flow.clone()
+        flow_out1 = nn.functional.interpolate(flow,scale_factor=8,mode='nearest') #勾配計算のためのサイズ変更
 
         inputs = torch.cat([inputs, skip_connections['skip2']], dim=1)
         inputs, flow = self.decoder2(inputs)
         flow_dict['flow1'] = flow.clone()
+        flow_out2 = nn.functional.interpolate(flow,scale_factor=4,mode='nearest') #勾配計算のためのサイズ変更
 
         inputs = torch.cat([inputs, skip_connections['skip1']], dim=1)
         inputs, flow = self.decoder3(inputs)
         flow_dict['flow2'] = flow.clone()
+        flow_out3 = nn.functional.interpolate(flow,scale_factor=2,mode='nearest') #勾配計算のためのサイズ変更
 
         inputs = torch.cat([inputs, skip_connections['skip0']], dim=1)
         inputs, flow = self.decoder4(inputs)
         flow_dict['flow3'] = flow.clone()
 
-        return flow
+        return flow_out1, flow_out2, flow_out3, flow
         
 
 # if __name__ == "__main__":
