@@ -119,7 +119,7 @@ def main(args: DictConfig):
     # ------------------
     #   Start training
     # ------------------
-#     model_path = "checkpoints/model_20240715035633.pth"
+#     model_path = ""
 #     model.load_state_dict(torch.load(model_path, map_location=device))
     model.train()
     for epoch in range(args.train.epochs):
@@ -131,15 +131,15 @@ def main(args: DictConfig):
             ground_truth_flow = batch["flow_gt"].to(device) # [B, 2, 480, 640]
             flow1, flow2, flow3, flow_last = model(event_image) # [B, 2, 480, 640]
 
-            loss1: torch.Tensor = compute_epe_error(flow1, ground_truth_flow)
-            loss2: torch.Tensor = compute_epe_error(flow2, ground_truth_flow)
-            loss3: torch.Tensor = compute_epe_error(flow3, ground_truth_flow)
-            loss_out: torch.Tensor = compute_epe_error(flow_last, ground_truth_flow)
-                
+            loss1: torch.Tensor = compute_epe_error(flow1, ground_truth_flow) #decoder部で最初の出力に対するloss
+            loss2: torch.Tensor = compute_epe_error(flow2, ground_truth_flow) #decoder部で2番目の出力に対するloss
+            loss3: torch.Tensor = compute_epe_error(flow3, ground_truth_flow) #decoder部で3番目の出力に対するloss
+            loss_out: torch.Tensor = compute_epe_error(flow_last, ground_truth_flow) #最終的な出力に対するloss
+
+            #正確なlossを確認するためにprintを行うlossはloss_outのみとする
             print(f"batch {i} loss: {loss_out.item()}")
             
-            loss = loss_out + 0.75*loss3 + 0.5*loss2 + 0.25*loss1
-
+            loss = loss_out + 0.75*loss3 + 0.5*loss2 + 0.25*loss1  #各lossを拡張割合で割り引いて勾配に反映
 
             optimizer.zero_grad()
 
