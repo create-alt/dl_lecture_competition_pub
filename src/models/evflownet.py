@@ -49,7 +49,7 @@ class EVFlowNet(nn.Module):
         inputs = torch.cat([inputs, skip_connections['skip3']], dim=1)
         inputs, flow = self.decoder1(inputs)
         flow_dict['flow0'] = flow.clone()
-        flow_out1 = nn.functional.interpolate(flow,scale_factor=8,mode='nearest') #勾配計算のためのサイズ変更
+        flow_out1 = nn.functional.interpolate(flow,scale_factor=8,mode='nearest') #勾配計算のため(教師データと比較可能にするため)のサイズ変更
 
         inputs = torch.cat([inputs, skip_connections['skip2']], dim=1)
         inputs, flow = self.decoder2(inputs)
@@ -65,7 +65,7 @@ class EVFlowNet(nn.Module):
         inputs, flow = self.decoder4(inputs)
         flow_dict['flow3'] = flow.clone()
 
-        return flow_out1, flow_out2, flow_out3, flow
+        return flow_out1, flow_out2, flow_out3, flow #それぞれでlossを計算するため各decoderの出力結果をreturn
         
 
 # if __name__ == "__main__":
