@@ -22,7 +22,7 @@ from src.utils import RepresentationType, VoxelGrid, flow_16bit_to_float
 
 VISU_INDEX = 1
 
-transform = tf.Compose([tf.RandomCrop(32, padding=(15, 15, 20, 20), padding_mode='constant'),  # random cropping
+transform = tf.Compose([tf.RandomCrop(32, padding=(4, 4, 4, 4), padding_mode='constant'),  # random cropping
                                 tf.ToTensor()])
 
 class EventSlicer:
