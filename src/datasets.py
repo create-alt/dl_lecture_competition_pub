@@ -22,7 +22,10 @@ from src.utils import RepresentationType, VoxelGrid, flow_16bit_to_float
 
 VISU_INDEX = 1
 
-transform = tf.Compose([tf.RandomCrop(32, padding=(4, 4, 4, 4), padding_mode='constant'),  # random cropping
+transform_crop = tf.Compose([tf.RandomCrop(32, padding=(4, 4, 4, 4), padding_mode='constant'),  # random cropping
+                                tf.ToTensor()])
+
+transform_rot = tf.Compose([tf.RandomRotation(degrees=(-30, 30)),  # random rotation
                                 tf.ToTensor()])
 
 class EventSlicer:
@@ -544,7 +547,7 @@ class DatasetProvider:
         for child in test_path.iterdir():
             self.name_mapper_test.append(str(child).split("/")[-1])
             test_sequences.append(Sequence(child, representation_type, 'test', delta_t_ms, num_bins,
-                                               transforms=[transform],
+                                               transforms=[transform_crop],
                                                name_idx=len(
                                                    self.name_mapper_test)-1,
                                                visualize=visualize))
@@ -560,17 +563,50 @@ class DatasetProvider:
         for seq in seqs:
             extra_arg = dict()
             train_sequences.append(Sequence(Path(train_path) / seq,
-                                   transforms = [transform],
+                                   transforms = [transform_crop],
                                    representation_type=representation_type, mode="train",
                                    load_gt=True, **extra_arg))
             self.train_dataset: torch.utils.data.ConcatDataset[Sequence] = torch.utils.data.ConcatDataset(train_sequences)
+                
+                
+        #画像の回転についての前処理を行う画像についてのデータセットを作成する
+        test_sequences_rot = list()
+        for child in test_path.iterdir():
+            self.name_mapper_test.append(str(child).split("/")[-1])
+            test_sequences_rot.append(Sequence(child, representation_type, 'test', delta_t_ms, num_bins,
+                                               transforms=[transform_rot],
+                                               name_idx=len(
+                                                   self.name_mapper_test)-1,
+                                               visualize=visualize))
+
+        self.test_dataset_rot = torch.utils.data.ConcatDataset(test_sequences_rot)
+
+        # Assemble train sequences
+        available_seqs = os.listdir(train_path)
+
+        seqs = available_seqs
+
+        train_sequences_rot: list[Sequence] = []
+        for seq in seqs:
+            extra_arg = dict()
+            train_sequences_rot.append(Sequence(Path(train_path) / seq,
+                                   transforms = [transform_rot],
+                                   representation_type=representation_type, mode="train",
+                                   load_gt=True, **extra_arg))
+            self.train_dataset_rot: torch.utils.data.ConcatDataset[Sequence] = torch.utils.data.ConcatDataset(train_sequences_rot)
 
     def get_test_dataset(self):
         return self.test_dataset
+    
+    def get_test_dataset2(self):
+        return self.test_dataset_rot
 
     def get_train_dataset(self):
         return self.train_dataset
 
+    def get_train_dataset2(self):
+        return self.train_dataset_rot
+    
     def get_name_mapping_test(self):
         return self.name_mapper_test
 
