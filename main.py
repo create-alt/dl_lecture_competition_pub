@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Dict, Any
 import os
 import time
-
+import gc
 
 class RepresentationType(Enum):
     VOXEL = auto()
@@ -81,7 +81,10 @@ def main(args: DictConfig):
         num_bins=4
     )
     train_set = loader.get_train_dataset()
+    train_set_rot = loader.get_train_dataset2()
     test_set = loader.get_test_dataset()
+    test_set_rot = loader.get_test_dataset2()
+    
     collate_fn = train_collate
     train_data = DataLoader(train_set,
                                  batch_size=args.data_loader.train.batch_size,
@@ -89,6 +92,17 @@ def main(args: DictConfig):
                                  collate_fn=collate_fn,
                                  drop_last=False)
     test_data = DataLoader(test_set,
+                                 batch_size=args.data_loader.test.batch_size,
+                                 shuffle=args.data_loader.test.shuffle,
+                                 collate_fn=collate_fn,
+                                 drop_last=False)
+    
+    train_data_rot = DataLoader(train_set,
+                                 batch_size=args.data_loader.train.batch_size,
+                                 shuffle=args.data_loader.train.shuffle,
+                                 collate_fn=collate_fn,
+                                 drop_last=False)
+    test_data_rot = DataLoader(test_set,
                                  batch_size=args.data_loader.test.batch_size,
                                  shuffle=args.data_loader.test.shuffle,
                                  collate_fn=collate_fn,
@@ -149,6 +163,31 @@ def main(args: DictConfig):
 
             total_loss += loss_out.item()
         print(f'Epoch {epoch+1}, Loss: {total_loss / len(train_data)}')
+        
+        for i, batch in enumerate(tqdm(train_data_rot)):
+            batch: Dict[str, Any]
+            event_image = batch["event_volume"].to(device) # [B, 4, 480, 640]
+            ground_truth_flow = batch["flow_gt"].to(device) # [B, 2, 480, 640]
+            flow1, flow2, flow3, flow_last = model(event_image) # [B, 2, 480, 640]
+
+            loss1: torch.Tensor = compute_epe_error(flow1, ground_truth_flow) #decoder部で最初の出力に対するloss
+            loss2: torch.Tensor = compute_epe_error(flow2, ground_truth_flow) #decoder部で2番目の出力に対するloss
+            loss3: torch.Tensor = compute_epe_error(flow3, ground_truth_flow) #decoder部で3番目の出力に対するloss
+            loss_out: torch.Tensor = compute_epe_error(flow_last, ground_truth_flow) #最終的な出力に対するloss
+
+            #正確なlossを確認するためにprintを行うlossはloss_outのみとする
+            print(f"batch {i} loss: {loss_out.item()}")
+            
+            loss = loss_out + 0.75*loss3 + 0.5*loss2 + 0.25*loss1  #各lossを拡張割合で割り引いて勾配に反映
+
+            optimizer.zero_grad()
+
+            loss.backward()
+            
+            optimizer.step()
+
+            total_loss += loss_out.item()
+        print(f'Epoch {epoch+1}, Loss: {total_loss / len(train_data)}')
 
     # Create the directory if it doesn't exist
     if not os.path.exists('checkpoints'):
@@ -167,10 +206,13 @@ def main(args: DictConfig):
     flow: torch.Tensor = torch.tensor([]).to(device)
     with torch.no_grad():
         print("start test")
-        for batch in tqdm(test_data):
+        for batch, batch_rot in tqdm(test_data, test_data_rot):
             batch: Dict[str, Any]
             event_image = batch["event_volume"].to(device)
+            event_image2 = batch2["event_volume"].to(device)
             _, _, _, batch_flow = model(event_image) # [1, 2, 480, 640]
+            _, _, _, batch_flow2 = model(event_image2) # [1, 2, 480, 640]
+            batch_flow = (batch_flow + batch_flow2) / 2
             flow = torch.cat((flow, batch_flow), dim=0)  # [N, 2, 480, 640]
         print("test done")
     # ------------------
